@@ -1,108 +1,46 @@
-# Uber Clone - Separated Apps Architecture
+# Uber Clone Project
+
+A comprehensive ride-sharing platform with three distinct applications built using modern technologies and beautiful neomorphic UI design.
+
+## Project Overview
 
 This project implements a ride-sharing platform with three separated applications:
-
-## Project Structure
-
-```
-uberkimi02/
-├── flutter-apps/
-│   ├── rider_app/          # Rider application
-│   ├── driver_app/         # Driver application
-│   └── admin_app/          # Admin application
-├── flutter-packages/
-│   └── uber_shared/        # Shared components and utilities
-├── backend-services/
-│   ├── rider-service/      # Rider backend service
-│   ├── driver-service/     # Driver backend service
-│   └── admin-service/      # Admin backend service
-└── init-scripts/           # Initialization scripts
-```
-
-## Applications
-
-### Rider App
-- Request rides
-- Track driver location in real-time
-- View ride progress
-- Rate drivers
-- Cash payment processing
-
-### Driver App
-- Receive ride notifications
-- Accept/decline ride requests
-- Navigate to pickup location
-- Track ride progress
-- Collect cash payments
-- Update ride status
-
-### Admin App
-- Monitor all rides in real-time
-- Manage users (riders and drivers)
-- View system health and statistics
-- Handle disputes and complaints
+- **Rider App**: Request rides, track drivers, make payments
+- **Driver App**: Accept ride requests, navigate routes, earn money
+- **Admin App**: Monitor system, manage users, oversee operations
 
 ## Technology Stack
 
-- **Frontend**: Flutter 3.10.4+ with Dart 3.0.0+
-- **Backend**: Node.js with Express.js
-- **Database**: PostgreSQL
-- **Real-time Communication**: Socket.IO
-- **Maps**: Google Maps with fallback to OpenStreetMap
-- **Authentication**: JWT with demo mode for development
+### Frontend
+- Flutter 3.10.4+ with Dart 3.0.0+
+- Provider for state management
+- Socket.IO client for real-time communication
+- Flutter Map for mapping
+
+### Backend
+- Node.js with Express.js microservices
+- PostgreSQL for database storage
+- Socket.IO server for real-time communication
+- JWT for authentication
 
 ## Getting Started
 
 ### Prerequisites
 - Flutter SDK 3.10.4+
 - Dart 3.0.0+
-- Node.js
-- PostgreSQL
+- Node.js 16+
+- PostgreSQL 13+
 
-### Backend Setup
-1. Navigate to each service directory:
-   ```bash
-   cd backend-services/rider-service
-   npm install
-   ```
-2. Configure environment variables in `.env` files
-3. Start each service:
-   ```bash
-   npm start
-   ```
+### Setup Instructions
+See [documentation/WALKTHROUGH.md](documentation/WALKTHROUGH.md) for detailed setup instructions.
 
-### Frontend Setup
-1. Navigate to each app directory:
-   ```bash
-   cd flutter-apps/rider_app
-   flutter pub get
-   ```
-2. Run the apps:
-   ```bash
-   flutter run -d chrome
-   ```
+## Documentation
+- [Walkthrough Guide](documentation/WALKTHROUGH.md)
+- [TODO Task List](documentation/TODO_TASKLIST.md)
+- [Architecture Documentation](documentation/ARCHITECTURE.md)
 
-## Environment Configuration
+## Contributing
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
-Each app and service uses environment variables for configuration:
-- API endpoints
-- Map provider keys
-- Database connections
-- Authentication settings
-
-## Development Mode
-
-Authentication can be bypassed in development mode using demo endpoints:
-- Rider: `POST /api/auth/demo/login/rider`
-- Driver: `POST /api/auth/demo/login/driver`
-- Admin: `POST /api/auth/demo/login/admin`
-
-## Features Implemented
-
-- ✅ Real-time ride request/notification system
-- ✅ Live location tracking between rider and driver
-- ✅ Cash-only payment processing
-- ✅ Ride lifecycle management (requested → accepted → in_progress → completed)
-- ✅ Cancellation policies and fraud detection
-- ✅ Map provider fallback mechanism
-- ✅ Admin monitoring dashboard
+## License
+See [LICENSE](LICENSE) for license information.
