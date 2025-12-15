@@ -5,7 +5,7 @@ import 'package:driver_app/models/user_model.dart';
 import 'package:driver_app/services/api_service.dart';
 import 'package:driver_app/config/environment.dart';
 import 'package:driver_app/config/dev_config.dart';
-import 'package:driver_app/screens/driver/driver_home_screen.dart';
+import 'package:driver_app/screens/driver/comprehensive_driver_home_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -121,7 +121,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     // Only allow driver users
     if (_currentUser!.isDriver) {
-      return const DriverHomeScreen();
+      return const ComprehensiveDriverHomeScreen();
     } else {
       // If not a driver, logout and go to login
       WidgetsBinding.instance.addPostFrameCallback((_) {

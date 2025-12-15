@@ -1,153 +1,105 @@
-# Uber Clone Backend
+# Driver Service
 
-A comprehensive backend for the Uber Clone application built with Node.js, Express, and PostgreSQL.
+The Driver Service is a backend microservice for the Uber Clone project that handles all driver-related functionality.
 
 ## Features
 
-- **Authentication**: JWT-based authentication with bypass OTP for development
-- **User Management**: Rider, Driver, and Admin user types
-- **Ride Management**: Complete ride lifecycle management
-- **Real-time Updates**: Socket.io for live ride tracking and status updates
-- **PostgreSQL Database**: Comprehensive database schema with Sequelize ORM
-- **RESTful API**: Well-structured API endpoints
-- **Error Handling**: Comprehensive error handling middleware
-- **Security**: Helmet, CORS, and input validation
+- Driver authentication and profile management
+- Vehicle information management
+- Available ride listing and acceptance
+- Ride progress tracking (pickup, start, complete)
+- Earnings tracking and reporting
 
-## Prerequisites
+## Technology Stack
 
-- Node.js (v18+ recommended)
-- PostgreSQL (v14+ recommended)
+- **Node.js** with **Express.js**
+- **PostgreSQL** with **Sequelize ORM**
+- **JWT** for authentication
+- **Socket.IO** for real-time communication
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 16+
+- PostgreSQL 13+
 - npm or yarn
 
-## Installation
+### Installation
 
 1. Clone the repository
-2. Navigate to the backend directory
+2. Navigate to the driver-service directory:
+   ```bash
+   cd backend-services/driver-service
+   ```
 3. Install dependencies:
-
-```bash
-cd backend
-npm install
-```
-
-## Configuration
-
-Create a `.env` file in the backend directory and configure your environment variables:
-
-```env
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=uber_clone
-DB_USER=postgres
-DB_PASSWORD=postgres
-
-# JWT Configuration
-JWT_SECRET=your_very_secure_jwt_secret_here_change_in_production
-JWT_EXPIRES_IN=24h
-
-# Server Configuration
-PORT=3000
-NODE_ENV=development
-```
-
-## Database Setup
-
-1. Make sure PostgreSQL is running
-2. Create the database:
-
-```sql
-CREATE DATABASE uber_clone;
-```
-
-3. Run the database setup script (from the root directory):
-
-```bash
-psql -U postgres -d uber_clone -f database_setup.sql
-```
-
-## Running the Server
+   ```bash
+   npm install
+   ```
+4. Set up environment variables (see `.env.example`)
+5. Start the service:
+   ```bash
+   npm start
+   ```
 
 ### Development
 
+For development with auto-reload:
 ```bash
 npm run dev
 ```
 
-### Production
-
-```bash
-npm start
-```
-
-The server will start on `http://localhost:3000`
-
-## API Documentation
-
-### Base URL
-
-`http://localhost:3000/api`
+## API Endpoints
 
 ### Authentication
+- `POST /api/auth/register` - Register new driver
+- `POST /api/auth/login` - Driver login
+- `POST /api/auth/demo/login/driver` - Demo login for development
 
-- **Login**: `POST /api/auth/login`
-- **Register**: `POST /api/auth/register`
-- **Get Current User**: `GET /api/auth/me` (Protected)
+### User Management
+- `GET /api/users/profile` - Get driver profile
+- `PUT /api/users/profile` - Update driver profile
 
-### Demo Endpoints (for quick testing)
+### Ride Management
+- `GET /api/rides/available` - Get available rides
+- `GET /api/rides/:id` - Get ride details
+- `POST /api/rides/:id/accept` - Accept ride
+- `POST /api/rides/:id/start` - Start ride
+- `POST /api/rides/:id/complete` - Complete ride
 
-- **Rider Demo Login**: `POST /api/auth/demo/login/rider`
-- **Driver Demo Login**: `POST /api/auth/demo/login/driver`
-- **Admin Demo Login**: `POST /api/auth/demo/login/admin`
+## Environment Variables
 
-### Health Check
-
-- **Health**: `GET /api/health`
-
-## Authentication
-
-All protected routes require a valid JWT token in the Authorization header:
-
-```
-Authorization: Bearer your_jwt_token_here
-```
-
-## Socket.io Events
-
-- **Connection**: `connection`
-- **Disconnection**: `disconnect`
-- **Ride Status Update**: `ride_status_update`
-- **Location Update**: `location_update`
-
-## Project Structure
+Create a `.env` file with the following variables:
 
 ```
-backend/
-├── config/              # Configuration files
-├── controllers/         # Route controllers
-├── middleware/          # Express middleware
-├── models/              # Database models
-├── routes/              # API routes
-├── services/            # Business logic services
-├── utils/               # Utility functions
-├── .env                 # Environment variables
-├── package.json         # Node.js dependencies
-├── server.js            # Main server file
-└── README.md            # This file
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=uber_clone_driver
+DB_USER=uber_user
+DB_PASSWORD=uber_password
+
+# JWT Configuration
+JWT_SECRET=uber_clone_secret_key_for_development_only
+JWT_EXPIRES_IN=24h
+
+# Server Configuration
+PORT=3020
+NODE_ENV=development
+
+# Map Configuration
+GOOGLE_MAPS_API_KEY=your_google_maps_api_key
+MAPBOX_ACCESS_TOKEN=your_mapbox_access_token
 ```
 
-## Testing
+## Development Mode
 
-The backend includes demo endpoints for quick testing. You can use these to test the authentication flow without setting up a database.
+In development mode, authentication can be bypassed using demo endpoints for faster testing and iteration.
 
-## Security Notes
+## Contributing
 
-- Always change the `JWT_SECRET` in production
-- Use HTTPS in production
-- Implement proper rate limiting
-- Use environment variables for sensitive data
-- Regularly update dependencies
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for contribution guidelines.
 
 ## License
 
-This project is licensed under the MIT License.
+See [LICENSE](../../LICENSE) for license information.

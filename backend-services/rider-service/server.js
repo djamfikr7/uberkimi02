@@ -1,204 +1,151 @@
 const express = require('express');
 const cors = require('cors');
+const dotenv = require('dotenv');
+const path = require('path');
+const http = require('http'); // Add this for Socket.IO
+const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
-const morgan = require('morgan');
-const http = require('http');
-const socketIo = require('socket.io');
-const { sequelize } = require('./models');
-const authRoutes = require('./routes/authRoutes');
-const userRoutes = require('./routes/userRoutes');
-const rideRoutes = require('./routes/rideRoutes');
-const driverRoutes = require('./routes/driverRoutes');
-const adminRoutes = require('./routes/adminRoutes');
-const { errorHandler } = require('./utils/errorHandler');
 
-// Initialize Express app
+// Load environment variables
+dotenv.config();
+
+// Create Express app
 const app = express();
-const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST']
+const PORT = process.env.PORT || 3010;
+
+// Create HTTP server for Socket.IO
+const server = http.createServer(app); // Changed from app.listen to createServer
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      scriptSrc: ["'self'"],
+      connectSrc: ["'self'", "ws:", "wss:"],
+    },
+  },
+}));
+
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  credentials: true
+}));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again later.'
+  }
+});
+app.use(limiter);
+
+// API-specific rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 requests per windowMs for auth
+  message: {
+    success: false,
+    message: 'Too many authentication attempts, please try again later.'
   }
 });
 
-// Middleware
-app.use(cors());
-app.use(helmet());
-app.use(morgan('dev'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Apply auth rate limiting to auth routes
+app.use('/api/auth', authLimiter);
 
-// Database connection with retry logic
-let isDatabaseConnected = false;
-let reconnectAttempts = 0;
-const maxReconnectAttempts = 10;
-
-const connectToDatabase = async () => {
-  const maxRetries = 5;
-  const retryDelay = 5000;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`🔄 Attempting database connection (attempt ${attempt}/${maxRetries})...`);
-      await sequelize.authenticate();
-      console.log('✅ PostgreSQL database connected successfully');
-
-      // Sync models with database
-      await sequelize.sync({ alter: true });
-      console.log('✅ Database models synchronized');
-
-      isDatabaseConnected = true;
-      reconnectAttempts = 0;
-      return true;
-    } catch (err) {
-      console.error(`❌ Database connection attempt ${attempt} failed:`, err.message);
-
-      if (attempt < maxRetries) {
-        console.log(`🔄 Retrying in ${retryDelay / 1000} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
-      } else {
-        console.log('ℹ️ All connection attempts failed. Falling back to mock data mode');
-        isDatabaseConnected = false;
-        return false;
-      }
-    }
-  }
-};
-
-// Automatic reconnection logic
-const setupDatabaseReconnection = () => {
-  // Set up connection error handling using sequelize events
-  sequelize.addHook('afterConnect', () => {
-    isDatabaseConnected = true;
-    reconnectAttempts = 0;
-    console.log('✅ Database reconnected successfully');
-  });
-
-  sequelize.addHook('afterDisconnect', () => {
-    isDatabaseConnected = false;
-  });
-
-  // Set up error event listener
-  const originalErrorHandler = sequelize.options.dialect.constructor.prototype.handleError;
-  sequelize.options.dialect.constructor.prototype.handleError = function(error) {
-    console.error('❌ Database connection error:', error.message);
-    isDatabaseConnected = false;
-
-    if (reconnectAttempts < maxReconnectAttempts) {
-      reconnectAttempts++;
-      console.log(`🔄 Attempting to reconnect to database (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
-
-      setTimeout(async () => {
-        try {
-          await sequelize.authenticate();
-          console.log('✅ Database reconnected successfully');
-          isDatabaseConnected = true;
-          reconnectAttempts = 0;
-        } catch (err) {
-          console.error('❌ Database reconnection failed:', err.message);
-        }
-      }, 5000);
-    } else {
-      console.log('ℹ️ Max reconnection attempts reached. Using mock data mode');
-    }
-
-    if (originalErrorHandler) {
-      originalErrorHandler.call(this, error);
-    }
-  };
-};
-
-// Try to connect to database, fall back to mock mode if failed
-const startServer = async () => {
-  const isDatabaseConnected = await connectToDatabase();
-
-  // Start server
-  const PORT = process.env.PORT || 3000;
-  server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`🌐 API available at http://localhost:${PORT}/api`);
-    console.log('🔄 Socket.io connected and ready');
-    if (!isDatabaseConnected) {
-      console.log('ℹ️ Using mock data - database connection failed');
-    }
-  });
-};
-
-// Start the server
-startServer();
-
-// Setup database reconnection
-setupDatabaseReconnection();
-
-// Socket.io connection
-io.on('connection', (socket) => {
-  console.log('� New client connected:', socket.id);
-
-  socket.on('disconnect', () => {
-    console.log('�🔴 Client disconnected:', socket.id);
-  });
-
-  // Ride status updates
-  socket.on('ride_status_update', (data) => {
-    console.log('🚗 Ride status update:', data);
-    io.emit('ride_status_updated', data);
-  });
-
-  // Location updates
-  socket.on('location_update', (data) => {
-    console.log('📍 Location update:', data);
-    io.emit('location_updated', data);
-  });
-});
+// Body parsing middleware with security options
+app.use(express.json({ 
+  strict: false,
+  limit: '10mb'
+}));
+app.use(express.urlencoded({ 
+  extended: true,
+  limit: '10mb'
+}));
 
 // Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/rides', rideRoutes);
-app.use('/api/drivers', driverRoutes);
-app.use('/api/admin', adminRoutes);
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Rider Service API', 
+    version: '1.0.0',
+    status: 'running'
+  });
+});
 
 // Health check endpoint
-app.get('/api/health', async (req, res) => {
-  try {
-    // Test database connection
-    const dbStatus = await sequelize.authenticate()
-      .then(() => 'connected')
-      .catch(() => 'disconnected');
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    service: 'rider-service'
+  });
+});
 
+// Demo login endpoint for development
+app.post('/api/auth/demo/login/rider', (req, res) => {
+  // In development mode, bypass authentication
+  if (process.env.NODE_ENV === 'development') {
+    const demoToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImRlbW8tcmlkZXIiLCJlbWFpbCI6InJpZGVyQHV1YmVyLmNvbSIsInJvbGUiOiJyaWRlciIsImlhdCI6MTUxNjIzOTAyMn0.6FxA7Xf7ER3WvCd8fFcKx0X1iC5UN8q9rJcXD1Mqj4Y';
     res.json({
-      status: 'healthy',
-      timestamp: new Date().toISOString(),
-      services: {
-        database: dbStatus,
-        socket: 'connected',
-        auth: 'operational',
-        rides: 'operational',
-        drivers: 'operational'
-      },
-      environment: process.env.NODE_ENV || 'development',
-      version: '1.0.0'
+      success: true,
+      token: demoToken,
+      user: {
+        id: 'demo-rider',
+        email: 'rider@uber.com',
+        firstName: 'Demo',
+        lastName: 'Rider',
+        role: 'rider'
+      }
     });
-  } catch (error) {
-    console.error('Health check error:', error);
-    res.status(500).json({
-      status: 'unhealthy',
-      error: error.message
+  } else {
+    res.status(403).json({ 
+      success: false, 
+      message: 'Demo login only available in development mode' 
     });
   }
 });
 
-// Error handling middleware
-app.use(errorHandler);
+// API routes
+app.use('/api/auth', require('./src/routes/authRoutes'));
+app.use('/api/users', require('./src/routes/userRoutes'));
+app.use('/api/rides', require('./src/routes/rideRoutes'));
+app.use('/api/location', require('./src/routes/locationRoutes')); // Add location routes
+app.use('/api/messages', require('./src/routes/messageRoutes')); // Add message routes
 
-// 404 handler
-app.use((req, res, next) => {
-  res.status(404).json({
-    error: 'NOT_FOUND',
-    message: 'Endpoint not found'
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ 
+    success: false, 
+    message: 'Something went wrong!',
+    error: process.env.NODE_ENV === 'development' ? err.message : {}
   });
 });
 
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({ 
+    success: false, 
+    message: 'Route not found' 
+  });
+});
 
-module.exports = { app, server, io };
+// Initialize Socket.IO server
+const { initializeSocketServer } = require('./src/socketServer');
+const socketServer = initializeSocketServer(server);
+
+// Make socket server available to routes
+app.set('socketServer', socketServer);
+
+// Start server
+server.listen(PORT, () => { // Changed from app.listen to server.listen
+  console.log(`Rider Service running on port ${PORT}`);
+  console.log(`Socket.IO server initialized with ${socketServer.getConnectedClientsCount()} connected clients`);
+});
+
+module.exports = app;

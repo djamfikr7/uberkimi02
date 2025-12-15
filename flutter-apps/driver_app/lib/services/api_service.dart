@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:async'; // Add this import for Timer
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:driver_app/models/user_model.dart';
@@ -23,10 +24,20 @@ class ApiService {
   static const String _tokenKey = 'auth_token';
   static const String _userKey = 'current_user';
 
+  // Location update listeners
+  static List<Function(Map<String, dynamic>)> _locationUpdateListeners = [];
+  static List<Function(Map<String, dynamic>)> _rideStatusUpdateListeners = [];
+  static Timer? _locationPollingTimer;
+
   // Get current token
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_tokenKey);
+  }
+
+  // Public method to get token
+  Future<String?> getToken() async {
+    return await _getToken();
   }
 
   // Set token
@@ -73,6 +84,10 @@ class ApiService {
   // Socket.io connection
   static IO.Socket? _socket;
   static bool _isSocketConnected = false;
+  static int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 5;
+  static const int _reconnectDelay = 5000; // 5 seconds
+  static Timer? _reconnectTimer;
   
   // Event listeners
   static List<Function(dynamic)> _rideStatusListeners = [];
@@ -97,17 +112,20 @@ class ApiService {
 
       _socket?.on('connect', (_) {
         _isSocketConnected = true;
+        _resetReconnectAttempts();
         print('✅ Socket connected: ${_socket?.id}');
       });
 
       _socket?.on('disconnect', (_) {
         _isSocketConnected = false;
         print('🔴 Socket disconnected');
+        _attemptReconnect(token);
       });
 
       _socket?.on('connect_error', (error) {
         _isSocketConnected = false;
         print('❌ Socket connection error: $error');
+        _attemptReconnect(token);
       });
 
       // Handle ride status updates
@@ -148,6 +166,28 @@ class ApiService {
       rethrow;
     }
   }
+  
+  // Attempt to reconnect
+  static void _attemptReconnect(String token) {
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      print('❌ Maximum reconnection attempts reached');
+      return;
+    }
+    
+    _reconnectAttempts++;
+    print('🔁 Attempting to reconnect ($_reconnectAttempts/$_maxReconnectAttempts) in ${_reconnectDelay}ms');
+    
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(Duration(milliseconds: _reconnectDelay), () {
+      _instance.connectSocket(token);
+    });
+  }
+  
+  // Reset reconnection attempts
+  static void _resetReconnectAttempts() {
+    _reconnectAttempts = 0;
+    _reconnectTimer?.cancel();
+  }
 
   // Disconnect Socket.io
   Future<void> _disconnectSocket() async {
@@ -157,6 +197,7 @@ class ApiService {
         _socket?.dispose();
         _socket = null;
         _isSocketConnected = false;
+        _resetReconnectAttempts();
         print('🔌 Socket disconnected');
       }
     } catch (e) {
@@ -323,11 +364,6 @@ class ApiService {
         final user = UserModel.fromJson(userData);
         await _setToken(token);
         await _setCurrentUser(user);
-        
-        // Connect socket for real-time updates
-        if (!Environment.useMockData) {
-          await connectSocket(token);
-        }
 
         return user;
       } else {
@@ -622,6 +658,106 @@ class ApiService {
     }
   }
 
+  // Get ride with location updates
+  Future<Map<String, dynamic>> getRideWithLocations(String rideId) async {
+    try {
+      if (_useMockData) {
+        // Mock response for development
+        await Future.delayed(const Duration(seconds: 1));
+        return {
+          'success': true,
+          'message': 'Ride retrieved successfully',
+          'data': {
+            'ride': {
+              'id': rideId,
+              'status': 'in_progress',
+              'pickupLocation': {'lat': 36.7213, 'lng': 3.0376},
+              'dropoffLocation': {'lat': 36.75, 'lng': 3.05},
+              'pickupAddress': 'Current Location',
+              'dropoffAddress': 'Destination',
+              'vehicleType': 'uber-x',
+              'baseFare': 15.0,
+              'finalFare': 15.0,
+              'driverLocation': {
+                'latitude': 36.73, 
+                'longitude': 3.04,
+                'timestamp': DateTime.now().toIso8601String(),
+              },
+              'riderLocation': {
+                'latitude': 36.7213, 
+                'longitude': 3.0376,
+                'timestamp': DateTime.now().toIso8601String(),
+              },
+              'createdAt': DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String(),
+            }
+          }
+        };
+      }
+
+      final response = await get('/rides/$rideId/locations');
+      return response;
+    } catch (e) {
+      throw Exception('Failed to get ride with locations: ${e.toString()}');
+    }
+  }
+
+  // Get available rides for driver
+  Future<Map<String, dynamic>> getAvailableRides() async {
+    try {
+      if (_useMockData) {
+        // Mock response for development
+        await Future.delayed(const Duration(seconds: 1));
+        return {
+          'success': true,
+          'message': 'Available rides retrieved successfully',
+          'data': {
+            'rides': [
+              {
+                'id': 'mock-ride-1',
+                'riderId': 'mock-rider-1',
+                'riderName': 'John Doe',
+                'riderPhoneNumber': '+1234567890',
+                'pickupAddress': '123 Main St',
+                'dropoffAddress': '456 Oak Ave',
+                'pickupLatitude': 40.7128,
+                'pickupLongitude': -74.0060,
+                'dropoffLatitude': 40.7589,
+                'dropoffLongitude': -73.9851,
+                'estimatedFare': 15.50,
+                'estimatedDistance': 5.2,
+                'estimatedDuration': 15,
+                'status': 'requested',
+                'requestedAt': DateTime.now().subtract(const Duration(minutes: 5)).toIso8601String(),
+              },
+              {
+                'id': 'mock-ride-2',
+                'riderId': 'mock-rider-2',
+                'riderName': 'Jane Smith',
+                'riderPhoneNumber': '+0987654321',
+                'pickupAddress': '789 Pine St',
+                'dropoffAddress': '321 Elm St',
+                'pickupLatitude': 40.7589,
+                'pickupLongitude': -73.9851,
+                'dropoffLatitude': 40.7128,
+                'dropoffLongitude': -74.0060,
+                'estimatedFare': 12.75,
+                'estimatedDistance': 4.1,
+                'estimatedDuration': 12,
+                'status': 'requested',
+                'requestedAt': DateTime.now().toIso8601String(),
+              }
+            ]
+          }
+        };
+      }
+
+      final response = await get('/rides/available');
+      return response;
+    } catch (e) {
+      throw Exception('Failed to get available rides: ${e.toString()}');
+    }
+  }
+
   // Update ride status
   Future<Map<String, dynamic>> updateRideStatus(String rideId, String status) async {
     try {
@@ -748,6 +884,33 @@ class ApiService {
     }
   }
 
+  // Update driver location
+  Future<Map<String, dynamic>> updateLocation({
+    required double latitude,
+    required double longitude,
+    required String rideId,
+  }) async {
+    try {
+      if (_useMockData) {
+        // Mock response for development
+        await Future.delayed(const Duration(milliseconds: 100));
+        return {
+          'success': true,
+          'message': 'Location updated successfully',
+        };
+      }
+
+      final response = await post('/location/update', {
+        'latitude': latitude,
+        'longitude': longitude,
+        'rideId': rideId,
+      });
+      return response;
+    } catch (e) {
+      throw Exception('Failed to update location: ${e.toString()}');
+    }
+  }
+
   // Handle API responses
   dynamic _handleResponse(http.Response response) {
     final statusCode = response.statusCode;
@@ -797,5 +960,60 @@ class ApiService {
     } on SocketException catch (_) {
       return false;
     }
+  }
+  
+  // Register for location updates (static version)
+  static void registerStaticLocationListener(Function(Map<String, dynamic>) listener) {
+    _locationUpdateListeners.add(listener);
+  }
+
+  // Unregister from location updates (static version)
+  static void unregisterStaticLocationListener(Function(Map<String, dynamic>) listener) {
+    _locationUpdateListeners.remove(listener);
+  }
+
+  // Register for ride status updates (static version)
+  static void registerStaticRideStatusListener(Function(Map<String, dynamic>) listener) {
+    _rideStatusUpdateListeners.add(listener);
+  }
+
+  // Unregister from ride status updates (static version)
+  static void unregisterStaticRideStatusListener(Function(Map<String, dynamic>) listener) {
+    _rideStatusUpdateListeners.remove(listener);
+  }
+
+  // Start polling for location updates (simulate real-time updates)
+  static void startLocationPolling(String rideId) {
+    // Cancel any existing polling
+    _locationPollingTimer?.cancel();
+    
+    // Start polling every 10 seconds
+    _locationPollingTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      try {
+        // Fetch updated ride details with locations
+        final response = await ApiService().getRideWithLocations(rideId);
+        if (response['success']) {
+          final rideData = response['data']['ride'];
+          
+          // Notify location listeners
+          for (var listener in _locationUpdateListeners) {
+            listener(rideData);
+          }
+          
+          // Notify ride status listeners
+          for (var listener in _rideStatusUpdateListeners) {
+            listener(rideData);
+          }
+        }
+      } catch (error) {
+        print('Error polling for location updates: $error');
+      }
+    });
+  }
+
+  // Stop polling for location updates
+  static void stopLocationPolling() {
+    _locationPollingTimer?.cancel();
+    _locationPollingTimer = null;
   }
 }

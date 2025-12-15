@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:uber_shared/widgets/animated_map_marker.dart';
 
 class MapConfig {
   /// Map provider options
@@ -82,6 +83,54 @@ class MapConfig {
     print('Is Configured: ${isGoogleMapsConfigured()}');
     print('=====================================');
   }
+  
+  /// Generate a simple route between two points (straight line)
+  static List<LatLng> generateSimpleRoute(LatLng start, LatLng end, {int steps = 10}) {
+    List<LatLng> route = [];
+    
+    // Generate intermediate points between start and end
+    for (int i = 0; i <= steps; i++) {
+      double fraction = i / steps;
+      double lat = start.latitude + (end.latitude - start.latitude) * fraction;
+      double lng = start.longitude + (end.longitude - start.longitude) * fraction;
+      route.add(LatLng(lat, lng));
+    }
+    
+    return route;
+  }
+  
+  /// Generate a more realistic route with some curvature
+  static List<LatLng> generateCurvedRoute(LatLng start, LatLng end, {int steps = 20}) {
+    List<LatLng> route = [];
+    
+    // Calculate midpoint
+    double midLat = (start.latitude + end.latitude) / 2;
+    double midLng = (start.longitude + end.longitude) / 2;
+    
+    // Add slight curvature by offsetting the midpoint
+    double curveOffsetLat = (end.latitude - start.latitude) * 0.1;
+    double curveOffsetLng = (end.longitude - start.longitude) * 0.1;
+    
+    LatLng curvedMidpoint = LatLng(midLat + curveOffsetLat, midLng + curveOffsetLng);
+    
+    // Generate first half of route from start to curved midpoint
+    for (int i = 0; i <= steps ~/ 2; i++) {
+      double fraction = i / (steps ~/ 2);
+      double lat = start.latitude + (curvedMidpoint.latitude - start.latitude) * fraction;
+      double lng = start.longitude + (curvedMidpoint.longitude - start.longitude) * fraction;
+      route.add(LatLng(lat, lng));
+    }
+    
+    // Generate second half of route from curved midpoint to end
+    for (int i = 1; i <= steps ~/ 2; i++) {
+      double fraction = i / (steps ~/ 2);
+      double lat = curvedMidpoint.latitude + (end.latitude - curvedMidpoint.latitude) * fraction;
+      double lng = curvedMidpoint.longitude + (end.longitude - curvedMidpoint.longitude) * fraction;
+      route.add(LatLng(lat, lng));
+    }
+    
+    return route;
+  }
 }
 
 class UniversalMapWidget extends StatefulWidget {
@@ -89,6 +138,7 @@ class UniversalMapWidget extends StatefulWidget {
   final double? longitude;
   final double? zoom;
   final List<Marker>? markers;
+  final List<Polyline>? polylines;
   final VoidCallback? onMapTap;
   final String? preferredProvider; // Allow specifying preferred provider
   
@@ -98,6 +148,7 @@ class UniversalMapWidget extends StatefulWidget {
     this.longitude,
     this.zoom,
     this.markers,
+    this.polylines,
     this.onMapTap,
     this.preferredProvider,
   });
@@ -125,10 +176,10 @@ class _UniversalMapWidgetState extends State<UniversalMapWidget> {
         _mapLoadFailed = false;
         
         // Try fallback providers in order
-        if (_currentProvider == MapConfig.mapbox && _retryCount >= 1) {
-          // Fall back to Google Maps if Mapbox fails
-          _currentProvider = MapConfig.googleMaps;
-        } else if ((_currentProvider == MapConfig.mapbox || _currentProvider == MapConfig.googleMaps) && _retryCount >= 2) {
+        if (_currentProvider == MapConfig.googleMaps && _retryCount >= 1) {
+          // Fall back to Mapbox if Google Maps fails
+          _currentProvider = MapConfig.mapbox;
+        } else if ((_currentProvider == MapConfig.googleMaps || _currentProvider == MapConfig.mapbox) && _retryCount >= 2) {
           // Fall back to OpenStreetMap if both fail
           _currentProvider = MapConfig.openStreetMap;
         }
@@ -200,6 +251,8 @@ class _UniversalMapWidgetState extends State<UniversalMapWidget> {
               // Add subdomain support for better performance
               subdomains: const ['a', 'b', 'c'],
             ),
+            if (widget.polylines != null && widget.polylines!.isNotEmpty)
+              PolylineLayer(polylines: widget.polylines!),
             if (widget.markers != null && widget.markers!.isNotEmpty)
               MarkerLayer(markers: widget.markers!),
           ],
@@ -218,6 +271,8 @@ class _UniversalMapWidgetState extends State<UniversalMapWidget> {
               userAgentPackageName: 'com.uberclone.app',
               subdomains: const ['mt0', 'mt1', 'mt2', 'mt3'],
             ),
+            if (widget.polylines != null && widget.polylines!.isNotEmpty)
+              PolylineLayer(polylines: widget.polylines!),
             if (widget.markers != null && widget.markers!.isNotEmpty)
               MarkerLayer(markers: widget.markers!),
           ],
@@ -235,6 +290,8 @@ class _UniversalMapWidgetState extends State<UniversalMapWidget> {
               urlTemplate: MapConfig.openStreetMapTileUrl,
               userAgentPackageName: 'com.uberclone.app',
             ),
+            if (widget.polylines != null && widget.polylines!.isNotEmpty)
+              PolylineLayer(polylines: widget.polylines!),
             if (widget.markers != null && widget.markers!.isNotEmpty)
               MarkerLayer(markers: widget.markers!),
           ],

@@ -10,6 +10,7 @@ class LocationService {
   static Position? _lastPosition;
   static DateTime? _lastPositionTime;
   static int _fraudScore = 0;
+  static Timer? _locationUpdateTimer; // Add timer for periodic updates
 
   // Start tracking location for a ride
   static Future<void> startLocationTracking(String rideId) async {
@@ -46,6 +47,18 @@ class LocationService {
         _emitLocationUpdate(position);
       }
     });
+
+    // Start periodic location updates (every 30 seconds)
+    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      if (_isTracking && _currentRideId != null) {
+        // Get current location and send update
+        getCurrentLocation().then((position) {
+          _emitLocationUpdate(position);
+        }).catchError((error) {
+          print('Error getting current location: $error');
+        });
+      }
+    });
   }
 
   // Stop tracking location
@@ -54,6 +67,8 @@ class LocationService {
     _currentRideId = null;
     await _positionStream?.cancel();
     _positionStream = null;
+    _locationUpdateTimer?.cancel(); // Cancel the timer
+    _locationUpdateTimer = null;
   }
 
   // Emit location update to server
@@ -73,26 +88,16 @@ class LocationService {
     _lastPosition = position;
     _lastPositionTime = DateTime.now();
     
-    if (!ApiService().isSocketConnected()) {
-      print('⚠️ Socket not connected, skipping location update');
-      return;
+    // Send location update to API instead of socket
+    if (_currentRideId != null) {
+      ApiService().updateLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        rideId: _currentRideId!,
+      ).catchError((error) {
+        print('❌ Error updating location: $error');
+      });
     }
-
-    final locationData = {
-      'rideId': _currentRideId,
-      'latitude': position.latitude,
-      'longitude': position.longitude,
-      'timestamp': DateTime.now().toIso8601String(),
-      'accuracy': position.accuracy,
-      'altitude': position.altitude,
-      'speed': position.speed,
-      'fraudScore': _fraudScore,
-      'userType': 'driver', // Add user type to distinguish
-    };
-
-    ApiService().emitLocationUpdate(locationData).catchError((error) {
-      print('❌ Error emitting location update: $error');
-    });
   }
   
   // Check for potential fraud

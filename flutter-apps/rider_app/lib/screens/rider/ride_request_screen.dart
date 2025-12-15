@@ -6,6 +6,7 @@ import 'package:rider_app/services/api_service.dart';
 import 'package:rider_app/utils/location_service.dart';
 import 'package:uber_shared/map_widget.dart';
 import 'package:rider_app/screens/rider/rating_screen.dart'; // Add this import
+import 'package:rider_app/screens/rider/chat_screen.dart'; // Add this import
 import 'dart:async';
 
 class RideRequestScreen extends StatefulWidget {
@@ -143,6 +144,14 @@ class _RideRequestScreenState extends State<RideRequestScreen> {
                     flutter_map.Marker(
                       point: _dropoffLocation!,
                       child: const Icon(Icons.location_on, color: Colors.red, size: 30),
+                    ),
+                ],
+                polylines: [
+                  if (_pickupLocation != null && _dropoffLocation != null)
+                    flutter_map.Polyline(
+                      points: MapConfig.generateCurvedRoute(_pickupLocation!, _dropoffLocation!),
+                      color: AppTheme.primaryColor,
+                      strokeWidth: 4.0,
                     ),
                 ],
               ),
@@ -340,6 +349,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   LatLng? _riderLocation;
   LatLng? _driverLocation;
   Timer? _timeoutTimer;
+  Timer? _locationUpdateTimer; // Add timer for periodic location updates
   bool _isLate = false;
   
   @override
@@ -348,8 +358,12 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     _loadRideDetails();
     _setupLocationTracking();
     _startTimeoutTimer();
+    // Start periodic location updates (every 30 seconds)
+    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _loadRideDetails();
+    });
   }
-  
+
   @override
   void dispose() {
     // Stop location tracking when screen is disposed
@@ -357,6 +371,7 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
     ApiService().unregisterLocationListener(_handleLocationUpdate);
     ApiService().unregisterRideStatusListener(_handleRideStatusUpdate);
     _timeoutTimer?.cancel();
+    _locationUpdateTimer?.cancel(); // Cancel the location update timer
     super.dispose();
   }
   
@@ -470,11 +485,29 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
   
   Future<void> _loadRideDetails() async {
     try {
-      final response = await ApiService().getRide(widget.rideId);
+      // Use the new endpoint that includes location data
+      final response = await ApiService().getRideWithLocations(widget.rideId);
       if (response['success'] && mounted) {
         setState(() {
           _ride = response['data']['ride'];
           _isLoading = false;
+          
+          // Update locations if available
+          if (_ride != null && _ride!['driverLocation'] != null) {
+            _driverLocation = LatLng(
+              _ride!['driverLocation']['latitude'],
+              _ride!['driverLocation']['longitude']
+            );
+          }
+          
+          if (_ride != null && _ride!['riderLocation'] != null) {
+            _riderLocation = LatLng(
+              _ride!['riderLocation']['latitude'],
+              _ride!['riderLocation']['longitude']
+            );
+          }
+          
+          _updateMarkers();
         });
       }
     } catch (error) {
@@ -591,6 +624,14 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                           longitude: 3.0376,
                           zoom: 13.0,
                           markers: _markers,
+                          polylines: [
+                            if (_riderLocation != null && _driverLocation != null)
+                              flutter_map.Polyline(
+                                points: MapConfig.generateCurvedRoute(_riderLocation!, _driverLocation!),
+                                color: AppTheme.primaryColor,
+                                strokeWidth: 4.0,
+                              ),
+                          ],
                         ),
                       ),
                       
@@ -709,7 +750,16 @@ class _RideTrackingScreenState extends State<RideTrackingScreen> {
                                     ),
                                     ElevatedButton.icon(
                                       onPressed: () {
-                                        // TODO: Implement message driver
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => ChatScreen(
+                                              rideId: _ride!['id'],
+                                              driverId: _ride!['driver']['id'],
+                                              currentUserId: 'demo-rider', // This should be replaced with actual user ID
+                                            ),
+                                          ),
+                                        );
                                       },
                                       icon: const Icon(Icons.message),
                                       label: const Text('Message'),

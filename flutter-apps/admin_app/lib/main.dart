@@ -5,7 +5,7 @@ import 'package:admin_app/models/user_model.dart';
 import 'package:admin_app/services/api_service.dart';
 import 'package:admin_app/config/environment.dart';
 import 'package:admin_app/config/dev_config.dart';
-import 'package:admin_app/screens/admin_dashboard_screen.dart';
+import 'package:admin_app/screens/comprehensive_admin_dashboard_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -121,7 +121,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     // Only allow admin users
     if (_currentUser!.isAdmin) {
-      return const AdminDashboardScreen();
+      return const ComprehensiveAdminDashboardScreen();
     } else {
       // If not an admin, logout and go to login
       WidgetsBinding.instance.addPostFrameCallback((_) {

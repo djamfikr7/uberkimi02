@@ -1,141 +1,161 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:rider_app/screens/auth/login_screen.dart';
-import 'package:rider_app/screens/rider/rider_home_screen.dart';
-import 'package:rider_app/theme/app_theme.dart';
-import 'package:rider_app/models/user_model.dart';
-import 'package:rider_app/services/api_service.dart';
-import 'package:rider_app/config/environment.dart';
-import 'package:rider_app/config/dev_config.dart';
+import 'package:uber_shared/uber_shared.dart';
+import 'services/auth_service.dart';
+import 'config/environment.dart';
+import 'screens/rider/comprehensive_home_screen.dart';
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Print environment configuration
+  // Print environment configuration for debugging
   Environment.printConfig();
-
-  runApp(const RiderApp());
+  runApp(const MyApp());
 }
 
-class RiderApp extends StatelessWidget {
-  const RiderApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Uber Clone Rider',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      home: const AuthWrapper(),
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/home': (context) => const RiderHomeScreen(),
-      },
+      title: 'Uber Clone - Rider App',
+      theme: AppTheme.theme,
+      home: const ComprehensiveHomeScreen(),
     );
   }
 }
 
-class AuthWrapper extends StatefulWidget {
-  const AuthWrapper({super.key});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<AuthWrapper> createState() => _AuthWrapperState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper> {
-  UserModel? _currentUser;
-  bool _isLoading = true;
+class _HomeScreenState extends State<HomeScreen> {
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _checkAuthStatus();
-  }
+  Future<void> _handleDemoLogin() async {
+    setState(() {
+      _isLoading = true;
+    });
 
-  Future<void> _checkAuthStatus() async {
     try {
-      final apiService = ApiService();
+      final result = await _authService.demoLogin();
       
-      if (DevConfig.bypassAuth) {
-        // For development: bypass authentication and auto-login as demo rider
-        final user = await apiService.demoLoginRider();
-        
-        if (user.isRider) {
-          setState(() {
-            _currentUser = user;
-            _isLoading = false;
-          });
-        } else {
-          // If not a rider, show login screen
-          setState(() {
-            _isLoading = false;
-          });
-        }
-      } else {
-        // Check if user is already authenticated
-        final isAuthenticated = await apiService.isAuthenticated();
-
-        if (isAuthenticated) {
-          // Get current user
-          final user = await apiService.getCurrentUser();
-          if (user != null && user.isRider) {
-            setState(() {
-              _currentUser = user;
-              _isLoading = false;
-            });
-            return;
-          }
-        }
-
-        // If not authenticated, show login screen directly
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } catch (error) {
-      // If any error occurs, proceed to login screen
       setState(() {
         _isLoading = false;
       });
+
+      if (result['success'] == true) {
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Demo login successful! Token: ${result['token']}'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        // Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Demo login failed: ${result['message']}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _onDemoLoginPressed() {
+    if (!_isLoading) {
+      _handleDemoLogin();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-          ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Rider App'),
+        backgroundColor: AppTheme.primaryLight,
+        foregroundColor: Colors.white,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'Welcome to the Rider App',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 20),
+            NeomorphicCard(
+              child: Column(
+                children: [
+                  const Text(
+                    'Login',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  NeomorphicTextField(
+                    hintText: 'Email',
+                    prefixIcon: Icons.email,
+                  ),
+                  const SizedBox(height: 16),
+                  NeomorphicTextField(
+                    hintText: 'Password',
+                    prefixIcon: Icons.lock,
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 20),
+                  NeomorphicButton(
+                    onPressed: () {
+                      // Handle login
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Login functionality to be implemented'),
+                        ),
+                      );
+                    },
+                    child: const Text('Login'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            NeomorphicButton(
+              onPressed: _onDemoLoginPressed,
+              child: _isLoading
+                  ? const CircularProgressIndicator()
+                  : const Text('Demo Login'),
+            ),
+          ],
         ),
-      );
-    }
-
-    if (_currentUser == null) {
-      return const LoginScreen();
-    }
-
-    // Only allow rider users
-    if (_currentUser!.isRider) {
-      return const RiderHomeScreen();
-    } else {
-      // If not a rider, logout and go to login
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ApiService().logout();
-        Navigator.pushReplacementNamed(context, '/login');
-      });
-      return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.primaryColor),
-          ),
-        ),
-      );
-    }
+      ),
+    );
   }
 }

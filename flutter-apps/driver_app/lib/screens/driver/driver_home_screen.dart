@@ -5,6 +5,7 @@ import 'package:driver_app/theme/app_theme.dart';
 import 'package:driver_app/models/user_model.dart';
 import 'package:driver_app/services/api_service.dart';
 import 'package:driver_app/screens/driver/ride_notification_screen.dart';
+import 'package:driver_app/screens/driver/available_rides_screen.dart';
 import 'package:uber_shared/map_widget.dart';
 import 'dart:async';
 
@@ -208,7 +209,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         },
         children: [
           DashboardTab(isOnline: _isOnline, onToggleOnline: _toggleOnlineStatus),
-          const RidesTab(),
+          const AvailableRidesScreen(), // Use AvailableRidesScreen instead of RidesTab
           const EarningsTab(),
           const ProfileTab(),
         ],
@@ -225,8 +226,8 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
             label: 'Dashboard',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'Rides',
+            icon: Icon(Icons.local_taxi),
+            label: 'Available Rides',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.account_balance_wallet),
@@ -309,6 +310,10 @@ class DashboardTab extends StatelessWidget {
                   child: const Icon(Icons.location_pin, color: Colors.blue, size: 40),
                 ),
               ],
+              polylines: [
+                // Add route visualization when pickup and dropoff locations are available
+                // This would be updated dynamically based on ride information
+              ],
             ),
           ),
 
@@ -380,21 +385,13 @@ class DashboardTab extends StatelessWidget {
   }
 }
 
-// Rides Tab
+// Update the RidesTab to show available rides when online
 class RidesTab extends StatelessWidget {
   const RidesTab({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Text(
-          'Ride History\n\nView your past rides and trip details here.',
-          textAlign: TextAlign.center,
-        ),
-      ),
-    );
+    return const AvailableRidesScreen();
   }
 }
 

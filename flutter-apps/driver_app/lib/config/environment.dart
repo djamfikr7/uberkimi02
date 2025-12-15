@@ -2,13 +2,13 @@ class Environment {
   /// API Base URL - can be overridden by environment variables
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'http://localhost:3002/api',
+    defaultValue: 'http://localhost:3000/api',
   );
 
   /// Socket.io Base URL
   static const String socketBaseUrl = String.fromEnvironment(
     'SOCKET_BASE_URL',
-    defaultValue: 'http://localhost:3002',
+    defaultValue: 'http://localhost:3000',
   );
 
   /// Use Mock Data - can be overridden by environment variables

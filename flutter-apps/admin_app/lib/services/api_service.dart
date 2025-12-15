@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:admin_app/models/user_model.dart';
@@ -72,6 +73,10 @@ class ApiService {
   // Socket.io connection
   static IO.Socket? _socket;
   static bool _isSocketConnected = false;
+  static int _reconnectAttempts = 0;
+  static const int _maxReconnectAttempts = 5;
+  static const int _reconnectDelay = 5000; // 5 seconds
+  static Timer? _reconnectTimer;
 
   // Connect to Socket.io
   Future<void> connectSocket(String token) async {
@@ -91,17 +96,20 @@ class ApiService {
 
       _socket?.on('connect', (_) {
         _isSocketConnected = true;
+        _resetReconnectAttempts();
         print('✅ Socket connected: ${_socket?.id}');
       });
 
       _socket?.on('disconnect', (_) {
         _isSocketConnected = false;
         print('🔴 Socket disconnected');
+        _attemptReconnect(token);
       });
 
       _socket?.on('connect_error', (error) {
         _isSocketConnected = false;
         print('❌ Socket connection error: $error');
+        _attemptReconnect(token);
       });
 
       // Handle ride status updates
@@ -121,6 +129,28 @@ class ApiService {
       rethrow;
     }
   }
+  
+  // Attempt to reconnect
+  static void _attemptReconnect(String token) {
+    if (_reconnectAttempts >= _maxReconnectAttempts) {
+      print('❌ Maximum reconnection attempts reached');
+      return;
+    }
+    
+    _reconnectAttempts++;
+    print('🔁 Attempting to reconnect ($_reconnectAttempts/$_maxReconnectAttempts) in ${_reconnectDelay}ms');
+    
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(Duration(milliseconds: _reconnectDelay), () {
+      _instance.connectSocket(token);
+    });
+  }
+  
+  // Reset reconnection attempts
+  static void _resetReconnectAttempts() {
+    _reconnectAttempts = 0;
+    _reconnectTimer?.cancel();
+  }
 
   // Disconnect Socket.io
   Future<void> _disconnectSocket() async {
@@ -130,6 +160,7 @@ class ApiService {
         _socket?.dispose();
         _socket = null;
         _isSocketConnected = false;
+        _resetReconnectAttempts();
         print('🔌 Socket disconnected');
       }
     } catch (e) {
@@ -749,6 +780,60 @@ class ApiService {
       return response;
     } catch (e) {
       throw Exception('Failed to get user details: ${e.toString()}');
+    }
+  }
+
+  // Get recent activities
+  Future<Map<String, dynamic>> getRecentActivities() async {
+    try {
+      if (_useMockData) {
+        // Mock response for development
+        await Future.delayed(const Duration(seconds: 1));
+        return {
+          'success': true,
+          'message': 'Recent activities retrieved successfully',
+          'data': {
+            'activities': [
+              {
+                'id': 'activity_1',
+                'type': 'user',
+                'message': 'New user registered: John Doe',
+                'time': '2 hours ago',
+              },
+              {
+                'id': 'activity_2',
+                'type': 'ride',
+                'message': 'Ride completed: #RIDE123',
+                'time': '1 hour ago',
+              },
+              {
+                'id': 'activity_3',
+                'type': 'system',
+                'message': 'System maintenance completed',
+                'time': '30 minutes ago',
+              },
+              {
+                'id': 'activity_4',
+                'type': 'user',
+                'message': 'Driver rating updated: Jane Smith',
+                'time': '15 minutes ago',
+              },
+              {
+                'id': 'activity_5',
+                'type': 'ride',
+                'message': 'New ride request: #RIDE456',
+                'time': '5 minutes ago',
+              },
+            ]
+          }
+        };
+      }
+
+      // For now, we'll use a placeholder endpoint
+      final response = await get('/admin/activities/recent');
+      return response;
+    } catch (e) {
+      throw Exception('Failed to get recent activities: ${e.toString()}');
     }
   }
 }
